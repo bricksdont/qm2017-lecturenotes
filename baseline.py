@@ -8,6 +8,7 @@ from __future__ import unicode_literals
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.neural_network import MLPClassifier
+from sklearn.dummy import DummyClassifier
 from sklearn import metrics
 
 from collections import defaultdict
@@ -33,12 +34,14 @@ class Trainer(object):
     Reads raw dialect data and trains a classifier.
     """
 
-    def __init__(self, model="model.pkl", data=None, verbose=False):
+    def __init__(self, model="model.pkl", data=None, verbose=False,
+    	classifier=None):
         """
         """
         self._model = model
         self._data = data
         self._verbose = verbose
+        self._classifier = classifier
         # outcomes
         self.classes = []
         self.num_classes = 0
@@ -65,6 +68,7 @@ class Trainer(object):
         if self._data:
             data = codecs.open(self._data, "r", "UTF-8")
         else:
+        	logging.debug("--data not found, assuming input from STDIN")
             data = sys.stdin
 
         for line in data:
@@ -103,7 +107,10 @@ class Trainer(object):
         vectorizer, followed by a kind of classifier.
         """
         self.vectorizer = CountVectorizer(stop_words=None)
-        self.classifier = MLPClassifier(verbose=True, early_stopping=True)
+        if self._classifier == "mlp":
+        	self.classifier = MLPClassifier(verbose=True, early_stopping=False) # TODO: early stopping?
+        else:
+        	self.classifier = DummyClassifier(strategy="stratified")
 
         self.pipeline = Pipeline([
             ("vectorizer", self.vectorizer),
@@ -179,7 +186,7 @@ class Predictor(object):
 
     	predictions = self.predict(test_X, label_only=True)
     	logging.info(metrics.classification_report(test_y, predictions, \
-    		target_names=None)) # TODO: self.classes))
+    		target_names=None))
 
 
 def parse_cmd():
@@ -227,6 +234,14 @@ def parse_cmd():
         required=False,
         help="path to file with raw dialect data, UTF-8. If --data is not given, input from STDIN is assumed"
     )
+    train_options.add_argument(
+        "--classifier",
+        type=str,
+        required=False,
+        default="mlp",
+        help="type of classifier to be trained. Either 'mlp' or 'dummy' (stratified class probabilities)",
+        choices=("mlp", "dummy")
+    )
 
     predict_options = parser.add_argument_group("prediction parameters")
 
@@ -255,24 +270,19 @@ def main():
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
 
     if args.train:
-    	if not args.data:
-    		logging.debug("--data not found, assuming input from STDIN")
-
-
         t = Trainer(model=args.model,
                     data=args.data,
                     verbose=args.verbose,
+                    classifier=args.classifier
                     )
         t.train()
         t.save()
     else:
-    	if not args.samples:
-    		logging.debug("--samples not found, assuming input from STDIN")
-
         p = Predictor(model=args.model)
         if args.samples:
             input_ = codecs.open(args.samples, "r", "UTF-8")
         else:
+        	logging.debug("--samples not found, assuming input from STDIN")
             input_ = sys.stdin
         if args.evaluate:
         	p.evaluate(samples=input_)
