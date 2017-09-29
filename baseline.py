@@ -16,13 +16,14 @@ from collections import defaultdict
 import logging
 import argparse
 import random
-import json
+import numpy
 import codecs
 import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 random.seed(42)
+numpy.random.seed(42)
 
 sys.stdout = codecs.getwriter('utf-8')(sys.__stdout__)
 sys.stderr = codecs.getwriter('utf-8')(sys.__stderr__)
@@ -35,7 +36,7 @@ class Trainer(object):
     """
 
     def __init__(self, model="model.pkl", data=None, verbose=False,
-    	classifier=None):
+    	classifier="mlp"):
         """
         """
         self._model = model
@@ -68,7 +69,7 @@ class Trainer(object):
         if self._data:
             data = codecs.open(self._data, "r", "UTF-8")
         else:
-        	logging.debug("--data not found, assuming input from STDIN")
+            logging.debug("--data not found, assuming input from STDIN")
             data = sys.stdin
 
         for line in data:
@@ -108,7 +109,7 @@ class Trainer(object):
         """
         self.vectorizer = CountVectorizer(stop_words=None)
         if self._classifier == "mlp":
-        	self.classifier = MLPClassifier(verbose=True, early_stopping=False) # TODO: early stopping?
+        	self.classifier = MLPClassifier(verbose=True, max_iter=10)
         else:
         	self.classifier = DummyClassifier(strategy="stratified")
 
@@ -185,8 +186,7 @@ class Predictor(object):
     	logging.debug("Number of gold samples found: %d" % len(test_y))
 
     	predictions = self.predict(test_X, label_only=True)
-    	logging.info(metrics.classification_report(test_y, predictions, \
-    		target_names=None))
+    	logging.info(metrics.classification_report(test_y, predictions))
 
 
 def parse_cmd():
@@ -282,7 +282,7 @@ def main():
         if args.samples:
             input_ = codecs.open(args.samples, "r", "UTF-8")
         else:
-        	logging.debug("--samples not found, assuming input from STDIN")
+            logging.debug("--samples not found, assuming input from STDIN")
             input_ = sys.stdin
         if args.evaluate:
         	p.evaluate(samples=input_)
